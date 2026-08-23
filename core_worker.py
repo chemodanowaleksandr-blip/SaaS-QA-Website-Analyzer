@@ -1,4 +1,3 @@
-import asyncio
 import httpx
 from bs4 import BeautifulSoup
 import streamlit as st
@@ -35,13 +34,14 @@ def save_to_history(url, status, links_count):
     conn.commit()
     conn.close()
 
-# 2. Асинхронная проверка статуса конкретной ссылки
-async def check_single_link(client: httpx.AsyncClient, link_data: dict):
+# 2. Стабильная синхронная проверка статуса конкретной ссылки
+def check_single_link(client: httpx.Client, link_data: dict):
     url = link_data["url"]
     try:
-        response = await client.head(url, timeout=5.0, follow_redirects=True)
+        # Быстрый HEAD запрос
+        response = client.head(url, timeout=4.0, follow_redirects=True)
         if response.status_code == 404 or response.status_code == 405:
-            response = await client.get(url, timeout=5.0, follow_redirects=True)
+            response = client.get(url, timeout=4.0, follow_redirects=True)
             
         link_data["status_code"] = response.status_code
         
@@ -56,16 +56,17 @@ async def check_single_link(client: httpx.AsyncClient, link_data: dict):
         link_data["health"] = "🔴 Broken (Timeout/Block)"
     return link_data
 
-# Глобальный сборщик элементов и запуск конкурентного пула задач
-async def analyze_website(url: str, is_premium: bool):
+# Синхронный сборщик элементов
+def analyze_website(url: str, is_premium: bool):
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
     }
     
-    async with httpx.AsyncClient(headers=headers, timeout=12.0, follow_redirects=True) as client:
+    # Используем чистый синхронный клиент
+    with httpx.Client(headers=headers, timeout=10.0, follow_redirects=True) as client:
         try:
-            response = await client.get(url)
+            response = client.get(url)
             if response.status_code != 200:
                 return {"status": "Failed", "error": f"HTTP Error: {response.status_code}", "links": []}
                 
@@ -98,8 +99,10 @@ async def analyze_website(url: str, is_premium: bool):
             if not is_premium:
                 raw_links = raw_links[:10]
             
-            tasks = [check_single_link(client, link) for link in raw_links]
-            verified_links = await asyncio.gather(*tasks)
+            # Последовательная надежная проверка без зависания потоков Streamlit
+            verified_links = []
+            for link in raw_links:
+                verified_links.append(check_single_link(client, link))
             
             return {
                 "status": "Passed",
@@ -130,15 +133,15 @@ def main():
     t = {
         "Русский": {
             "title": "🔍 Глобальный SaaS QA Анализатор Сайтов",
-            "subtitle": "Многопоточный асинхронный аудит доступности ссылок (HTTP Status Codes Validation) для СНГ и Европы.",
+            "subtitle": "Многопоточный аудит доступности ссылок (HTTP Status Codes Validation) для СНГ и Европы.",
             "history": "📋 История проверок",
             "history_empty": "История пока пуста.",
             "placeholder": "Введите URL сайта для глубокого QA-анализа:",
             "button": "🚀 Запустить глубокий аудит доступности",
             "placeholder_input": "mysite.com",
             "warning": "Пожалуйста, укажите адрес сайта!",
-            "info": "Инициализация асинхронного пула задач для: ",
-            "spinner": "Движок пингует все найденные ссылки одновременно...",
+            "info": "Инициализация пула задач для: ",
+            "spinner": "Движок проверяет работоспособность ссылок...",
             "success": "✅ ГЛУБОКИЙ АУДИТ ЗАВЕРШЕН — Обработано за {:.2f} сек.",
             "metric_status": "Статус главной страницы",
             "metric_links": "Всего ссылок на сайте",
@@ -155,15 +158,15 @@ def main():
         },
         "English": {
             "title": "🔍 Global SaaS QA Website Analyzer",
-            "subtitle": "Concurrent HTTP Status Codes Validation & Link Health Monitoring Engine.",
+            "subtitle": "HTTP Status Codes Validation & Link Health Monitoring Engine.",
             "history": "📋 Scan History",
             "history_empty": "No scans yet.",
             "placeholder": "Enter website URL for deep QA-audit:",
             "placeholder_input": "example.com",
             "button": "🚀 Run Deep HTTP Health Audit",
             "warning": "Please enter a valid URL!",
-            "info": "Initializing concurrent task pool for: ",
-            "spinner": "Engine is pinging all extracted URLs simultaneously...",
+            "info": "Initializing task pool for: ",
+            "spinner": "Engine is pinging all extracted URLs...",
             "success": "✅ DEEP AUDIT COMPLETE — Processed in {:.2f} seconds.",
             "metric_status": "Main Page Status",
             "metric_links": "Total Links Extracted",
@@ -212,7 +215,8 @@ def main():
         
         with st.spinner(t["spinner"]):
             start_time = time.time()
-            result = asyncio.run(analyze_website(target_url, is_premium))
+            # Прямой синхронный вызов
+            result = analyze_website(target_url, is_premium)
             end_time = time.time()
             
         if result["status"] == "Passed":
@@ -228,7 +232,6 @@ def main():
                 
                 formatted_links = []
                 for link in result["links"]:
-                    # Пошаговое создание элементов таблицы (Без вложенных скобок)
                     item = {}
                     item[t["col_text"]] = link["text"][:40]
                     item[t["col_url"]] = link["url"]
@@ -236,4 +239,6 @@ def main():
                     item[t["col_code"]] = int(link["status_code"]) if link["status_code"] else "Error"
                     item[t["col_health"]] = link["health"]
                     formatted_links.append(item)
+                
+                df_links = pd.DataFrame(formatted_links)
                 
