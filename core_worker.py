@@ -35,17 +35,18 @@ def save_to_history(url, status, links_count):
     conn.commit()
     conn.close()
 
-# 2. ВЗРОСЛЫЙ ДВИЖОК: Асинхронная проверка статуса конкретной ссылки
+# 2. Асинхронная проверка статуса конкретной ссылки
 async def check_single_link(client: httpx.AsyncClient, link_data: dict):
     url = link_data["url"]
     try:
-        # Отправляем быстрый HEAD-запрос вместо тяжелого GET, чтобы сэкономить трафик и время
+        # Отправляем быстрый HEAD-запрос вместо тяжелого GET
         response = await client.head(url, timeout=5.0, follow_redirects=True)
-        # Если HEAD не поддерживается сайтом, подстраховываемся GET-запросом
+        # Если HEAD не поддерживается сайтом (код 404 или 405), страхуемся через GET
         if response.status_code in:
             response = await client.get(url, timeout=5.0, follow_redirects=True)
             
         link_data["status_code"] = response.status_code
+        
         if response.status_code == 200:
             link_data["health"] = "🟢 OK"
         elif response.status_code in:
@@ -76,7 +77,6 @@ async def analyze_website(url: str, is_premium: bool):
             raw_links = []
             seen_urls = set()
             
-            # Собираем сырые данные со страницы
             for a_tag in soup.find_all("a", href=True):
                 raw_href = a_tag["href"].strip()
                 if not raw_href or raw_href.startswith(("#", "javascript:", "mailto:", "tel:")):
@@ -96,13 +96,11 @@ async def analyze_website(url: str, is_premium: bool):
                     "health": "⏳ Pending"
                 })
             
-            # Применяем бизнес-лимиты ДО проверки, чтобы не тратить ресурсы сервера на тарифе Free
             total_scanned = len(raw_links)
             if not is_premium:
                 raw_links = raw_links[:10]
             
-            # КЛЮЧЕВАЯ ИНЖЕНЕРНАЯ ФИЧА: Запуск параллельного асинхронного пула задач!
-            # Проверяем все 10 (или все 190) ссылок ОДНОВРЕМЕННО
+            # Запуск параллельного асинхронного пула задач
             tasks = [check_single_link(client, link) for link in raw_links]
             verified_links = await asyncio.gather(*tasks)
             
@@ -236,3 +234,7 @@ def main():
                     formatted_links.append({
                         t["col_text"]: link["text"][:40],
                         t["col_url"]: link["url"],
+                        t["col_type"]: t["type_int"] if link["is_internal"] else t["type_ext"],
+                        t["col_code"]: int(link["status_code"]) if link["status_code"] else "Error",
+                        t["col_health"]: link["health"]
+                    })
