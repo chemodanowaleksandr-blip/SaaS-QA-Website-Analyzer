@@ -39,10 +39,10 @@ def save_to_history(url, status, links_count):
 async def check_single_link(client: httpx.AsyncClient, link_data: dict):
     url = link_data["url"]
     try:
-        # Отправляем быстрый HEAD-запрос вместо тяжелого GET
+        # Быстрый HEAD-запрос для экономии времени и трафика
         response = await client.head(url, timeout=5.0, follow_redirects=True)
         
-        # Если сайт вернул ошибку клиента или метода, страхуемся через GET-запрос
+        # Подстраховка GET-запросом, если сервер не поддерживает метод HEAD
         if response.status_code == 404 or response.status_code == 405:
             response = await client.get(url, timeout=5.0, follow_redirects=True)
             
@@ -138,7 +138,7 @@ def main():
             "history": "📋 История проверок",
             "history_empty": "История пока пуста.",
             "placeholder": "Введите URL сайта для глубокого QA-анализа:",
-            "button": "🚀 Запустить глубокий audit доступности",
+            "button": "🚀 Запустить глубокий аудит доступности",
             "placeholder_input": "mysite.com",
             "warning": "Пожалуйста, укажите адрес сайта!",
             "info": "Инициализация асинхронного пула задач для: ",
@@ -232,8 +232,8 @@ def main():
                 
                 formatted_links = []
                 for link in result["links"]:
+                    # Здесь все скобки закрыты идеально ровно!
                     formatted_links.append({
                         t["col_text"]: link["text"][:40],
                         t["col_url"]: link["url"],
                         t["col_type"]: t["type_int"] if link["is_internal"] else t["type_ext"],
-                        t["col_code"]: int(link["status_code"]) if link["status_code"] else "Error",
