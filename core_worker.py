@@ -35,12 +35,33 @@ def save_to_history(url, status, links_count):
     conn.commit()
     conn.close()
 
-# 2. Универсальный асинхронный движок парсера
-async def analyze_website(url: str):
+# 2. ВЗРОСЛЫЙ ДВИЖОК: Асинхронная проверка статуса конкретной ссылки
+async def check_single_link(client: httpx.AsyncClient, link_data: dict):
+    url = link_data["url"]
+    try:
+        # Отправляем быстрый HEAD-запрос вместо тяжелого GET, чтобы сэкономить трафик и время
+        response = await client.head(url, timeout=5.0, follow_redirects=True)
+        # Если HEAD не поддерживается сайтом, подстраховываемся GET-запросом
+        if response.status_code in:
+            response = await client.get(url, timeout=5.0, follow_redirects=True)
+            
+        link_data["status_code"] = response.status_code
+        if response.status_code == 200:
+            link_data["health"] = "🟢 OK"
+        elif response.status_code in:
+            link_data["health"] = "🟡 Redirect"
+        else:
+            link_data["health"] = f"🔴 Broken ({response.status_code})"
+    except Exception:
+        link_data["status_code"] = 0
+        link_data["health"] = "🔴 Broken (Timeout/Block)"
+    return link_data
+
+# Глобальный сборщик элементов и запуск конкурентного пула задач
+async def analyze_website(url: str, is_premium: bool):
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-        "Accept-Language": "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7",
     }
     
     async with httpx.AsyncClient(headers=headers, timeout=12.0, follow_redirects=True) as client:
@@ -52,9 +73,10 @@ async def analyze_website(url: str):
             soup = BeautifulSoup(response.text, "html.parser")
             base_url = str(response.url)
             
-            links = []
+            raw_links = []
             seen_urls = set()
             
+            # Собираем сырые данные со страницы
             for a_tag in soup.find_all("a", href=True):
                 raw_href = a_tag["href"].strip()
                 if not raw_href or raw_href.startswith(("#", "javascript:", "mailto:", "tel:")):
@@ -66,92 +88,106 @@ async def analyze_website(url: str):
                 seen_urls.add(full_url)
                 
                 is_internal = urlparse(full_url).netloc == urlparse(base_url).netloc
-                links.append({
+                raw_links.append({
                     "text": a_tag.text.strip() or "[No Text / Icon]",
                     "url": full_url,
-                    "is_internal": is_internal
+                    "is_internal": is_internal,
+                    "status_code": None,
+                    "health": "⏳ Pending"
                 })
-                
-            return {"status": "Passed", "error": None, "links": links}
+            
+            # Применяем бизнес-лимиты ДО проверки, чтобы не тратить ресурсы сервера на тарифе Free
+            total_scanned = len(raw_links)
+            if not is_premium:
+                raw_links = raw_links[:10]
+            
+            # КЛЮЧЕВАЯ ИНЖЕНЕРНАЯ ФИЧА: Запуск параллельного асинхронного пула задач!
+            # Проверяем все 10 (или все 190) ссылок ОДНОВРЕМЕННО
+            tasks = [check_single_link(client, link) for link in raw_links]
+            verified_links = await asyncio.gather(*tasks)
+            
+            return {
+                "status": "Passed",
+                "error": None,
+                "links": verified_links,
+                "total_count": total_scanned
+            }
         except Exception as e:
             return {"status": "Failed", "error": str(e), "links": []}
 
-# 3. Веб-интерфейс с бизнес-логикой (Монетизация)
+# 3. Веб-интерфейс
 def main():
-    st.set_page_config(page_title="Global SaaS QA Website Analyzer", page_icon="🔍", layout="wide")
+    st.set_page_config(page_title="Enterprise QA Site Analyzer", page_icon="🔍", layout="wide")
     init_db()
     
-    # Боковая панель: Выбор языка
     lang = st.sidebar.selectbox("🌐 Language / Язык", ["Русский", "English"])
     
-    # СЕКРЕТНЫЙ ПРОМОКОД ДЛЯ ИНВЕСТОРОВ И ПРЕМИУМА
     st.sidebar.markdown("---")
     st.sidebar.subheader("💎 Subscription / Подписка")
     promo_input = st.sidebar.text_input("Промокод / Promo Code", placeholder="STARTUP2026", type="password")
-    
-    # Проверка статуса подписки
     is_premium = (promo_input.strip() == "STARTUP2026")
     
     if is_premium:
         st.sidebar.success("👑 PREMIUM ACTIVE / АКТИВЕН")
     else:
         st.sidebar.warning("🆓 FREE PLAN / БЕСПЛАТНЫЙ")
-        st.sidebar.info("💡 Введите код 'STARTUP2026' для активации Premium-функций.")
     
-    # Словари локализации
     t = {
         "Русский": {
             "title": "🔍 Глобальный SaaS QA Анализатор Сайтов",
-            "subtitle": "Профессиональный инструмент автоматического аудита ссылок и структуры веб-ресурсов для СНГ и международных рынков.",
+            "subtitle": "Многопоточный асинхронный аудит доступности ссылок (HTTP Status Codes Validation) для СНГ и Европы.",
             "history": "📋 История проверок",
-            "history_empty": "История пуста. Проверьте первый сайт!",
-            "placeholder": "Введите URL сайта (например, mysite.am или site.com):",
-            "button": "🚀 Запустить автоматический аудит",
+            "history_empty": "История пока пуста.",
+            "placeholder": "Введите URL сайта для глубокого QA-анализа:",
+            "button": "🚀 Запустить глубокий аудит доступности",
+            "placeholder_input": "mysite.com",
             "warning": "Пожалуйста, укажите адрес сайта!",
-            "info": "Анализируем цель: ",
-            "spinner": "Движок обрабатывает элементы веб-страницы...",
-            "success": "✅ АУДИТ ЗАВЕРШЕН — Обработано за {:.2f} сек.",
-            "metric_status": "Статус ответа",
-            "metric_links": "Найдено уникальных ссылок",
-            "table_title": "🔗 Сканированные элементы и таблица маршрутизации:",
-            "col_text": "Элемент (Текст)",
-            "col_url": "Полный URL адрес",
+            "info": "Инициализация асинхронного пула задач для: ",
+            "spinner": "Движок пингует все найденные ссылки одновременно...",
+            "success": "✅ ГЛУБОКИЙ АУДИТ ЗАВЕРШЕН — Обработано за {:.2f} сек.",
+            "metric_status": "Статус главной страницы",
+            "metric_links": "Всего ссылок на сайте",
+            "table_title": "📊 Карта маршрутизации и валидация статусов (HTTP Health Check):",
+            "col_text": "Текст элемента",
+            "col_url": "Проверяемый URL",
             "col_type": "Тип ссылки",
+            "col_code": "HTTP Код",
+            "col_health": "Здоровье ссылки",
             "type_int": "Внутренняя",
             "type_ext": "Внешняя",
-            "download": "📥 Скачать полный отчет в CSV",
-            "failed": "❌ АУДИТ ПРОВАЛЕН. ",
-            "limit_notice": "⚠️ Ограничение бесплатной версии: показано только 10 ссылок из {}. Чтобы выгрузить полный отчёт в CSV и снять лимиты, активируйте Premium подписку."
+            "download": "📥 Скачать комплаенс-отчет (CSV)",
+            "limit_notice": "⚠️ Лимит Free-плана: Проверено только первые 10 ссылок из {}. Введите промокод Premium для проверки всех элементов."
         },
         "English": {
             "title": "🔍 Global SaaS QA Website Analyzer",
-            "subtitle": "Professional automated QA tool for testing website structure, internal links, and compliance.",
+            "subtitle": "Concurrent HTTP Status Codes Validation & Link Health Monitoring Engine.",
             "history": "📋 Scan History",
-            "history_empty": "No scans yet. Try your first URL!",
-            "placeholder": "Enter website URL (e.g., mysite.am or site.com):",
-            "button": "🚀 Run Automated Audit",
+            "history_empty": "No scans yet.",
+            "placeholder": "Enter website URL for deep QA-audit:",
+            "placeholder_input": "example.com",
+            "button": "🚀 Run Deep HTTP Health Audit",
             "warning": "Please enter a valid URL!",
-            "info": "Analyzing target: ",
-            "spinner": "Processing webpage elements...",
-            "success": "✅ AUDIT COMPLETE — Processed in {:.2f} seconds.",
-            "metric_status": "Response Status",
-            "metric_links": "Unique Links Found",
-            "table_title": "🔗 Scanned Web Elements & Routing Table:",
-            "col_text": "Element (Text)",
-            "col_url": "Full URL Address",
+            "info": "Initializing concurrent task pool for: ",
+            "spinner": "Engine is pinging all extracted URLs simultaneously...",
+            "success": "✅ DEEP AUDIT COMPLETE — Processed in {:.2f} seconds.",
+            "metric_status": "Main Page Status",
+            "metric_links": "Total Links Extracted",
+            "table_title": "📊 Routing Map & HTTP Health Status Validation Table:",
+            "col_text": "Element Text",
+            "col_url": "Target URL",
             "col_type": "Link Type",
+            "col_code": "HTTP Code",
+            "col_health": "Link Health",
             "type_int": "Internal",
             "type_ext": "External",
-            "download": "📥 Download Full Report (CSV)",
-            "failed": "❌ AUDIT FAILED. ",
-            "limit_notice": "⚠️ Free Plan Limit: displaying only 10 links out of {}. Activate Premium Subscription to unlock full CSV export and deep crawling."
+            "download": "📥 Download Compliance Report (CSV)",
+            "limit_notice": "⚠️ Free Plan Limit: Evaluated only first 10 links out of {}. Activate Premium to audit the entire infrastructure."
         }
     }[lang]
 
     st.title(t["title"])
     st.caption(t["subtitle"])
     
-    # Боковая панель с историей
     st.sidebar.markdown("---")
     st.sidebar.header(t["history"])
     conn = sqlite3.connect(DB_FILE)
@@ -166,8 +202,7 @@ def main():
     finally:
         conn.close()
 
-    # Поле ввода
-    user_input = st.text_input(t["placeholder"], placeholder="example.com")
+    user_input = st.text_input(t["placeholder"], placeholder=t["placeholder_input"])
     
     if st.button(t["button"], type="primary"):
         if not user_input:
@@ -182,7 +217,7 @@ def main():
         
         with st.spinner(t["spinner"]):
             start_time = time.time()
-            result = asyncio.run(analyze_website(target_url))
+            result = asyncio.run(analyze_website(target_url, is_premium))
             end_time = time.time()
             
         if result["status"] == "Passed":
@@ -191,46 +226,13 @@ def main():
             
             col1, col2 = st.columns(2)
             col1.metric(t["metric_status"], "200 OK")
-            col2.metric(t["metric_links"], len(result["links"]))
+            col2.metric(t["metric_links"], result["total_count"])
             
             if result["links"]:
                 st.subheader(t["table_title"])
                 
-                # Формируем сырой список ссылок
-                all_links = []
+                formatted_links = []
                 for link in result["links"]:
-                    all_links.append({
-                        t["col_text"]: link["text"][:50],
+                    formatted_links.append({
+                        t["col_text"]: link["text"][:40],
                         t["col_url"]: link["url"],
-                        t["col_type"]: t["type_int"] if link["is_internal"] else t["type_ext"]
-                    })
-                
-                # ПРИМЕНЯЕМ БИЗНЕС-ЛОГИКУ МОНЕТИЗАЦИИ
-                total_count = len(all_links)
-                if not is_premium:
-                    # Обрезаем таблицу до 10 элементов для бесплатных юзеров
-                    display_links = all_links[:10]
-                    st.warning(t["limit_notice"].format(total_count))
-                else:
-                    display_links = all_links
-                
-                df_links = pd.DataFrame(display_links)
-                st.dataframe(df_links, use_container_width=True)
-                
-                # Кнопка скачивания доступна ТОЛЬКО для премиум аккаунтов
-                if is_premium:
-                    csv = df_links.to_csv(index=False).encode('utf-8')
-                    st.download_button(
-                        label=t["download"],
-                        data=csv,
-                        file_name="qa_premium_report.csv",
-                        mime="text/csv",
-                    )
-                else:
-                    st.button(t["download"], disabled=True, help="Available only in Premium Plan / Доступно только в Premium тарифе")
-        else:
-            st.error(f"{t['failed']} {result['error']}")
-            save_to_history(target_url, "Failed", 0)
-
-if __name__ == "__main__":
-    main()
