@@ -43,6 +43,7 @@ async def analyze_website(url: str):
         "Accept-Language": "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7",
     }
     
+    # http2=True теперь полностью обеспечен библиотекой httpcore в requirements
     async with httpx.AsyncClient(headers=headers, timeout=12.0, follow_redirects=True, http2=True) as client:
         try:
             response = await client.get(url)
@@ -81,7 +82,7 @@ def main():
     st.set_page_config(page_title="Global SaaS QA Website Analyzer", page_icon="🔍", layout="wide")
     init_db()
     
-    # КЛЮЧЕВАЯ ФИЧА: Выбор языка интерфейса глобального продукта
+    # Выбор языка интерфейса
     lang = st.sidebar.selectbox("🌐 Language / Язык", ["Русский", "English"])
     
     # Словари локализации
@@ -179,7 +180,6 @@ def main():
             if result["links"]:
                 st.subheader(t["table_title"])
                 
-                # Форматируем таблицу под выбранный язык
                 formatted_links = []
                 for link in result["links"]:
                     formatted_links.append({
