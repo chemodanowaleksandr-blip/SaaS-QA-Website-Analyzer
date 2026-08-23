@@ -39,10 +39,7 @@ def save_to_history(url, status, links_count):
 async def check_single_link(client: httpx.AsyncClient, link_data: dict):
     url = link_data["url"]
     try:
-        # Быстрый HEAD-запрос для экономии времени и трафика
         response = await client.head(url, timeout=5.0, follow_redirects=True)
-        
-        # Подстраховка GET-запросом, если сервер не поддерживает метод HEAD
         if response.status_code == 404 or response.status_code == 405:
             response = await client.get(url, timeout=5.0, follow_redirects=True)
             
@@ -101,7 +98,6 @@ async def analyze_website(url: str, is_premium: bool):
             if not is_premium:
                 raw_links = raw_links[:10]
             
-            # Запуск параллельного асинхронного пула задач
             tasks = [check_single_link(client, link) for link in raw_links]
             verified_links = await asyncio.gather(*tasks)
             
@@ -232,8 +228,12 @@ def main():
                 
                 formatted_links = []
                 for link in result["links"]:
-                    # Здесь все скобки закрыты идеально ровно!
-                    formatted_links.append({
-                        t["col_text"]: link["text"][:40],
-                        t["col_url"]: link["url"],
-                        t["col_type"]: t["type_int"] if link["is_internal"] else t["type_ext"],
+                    # Пошаговое создание элементов таблицы (Без вложенных скобок)
+                    item = {}
+                    item[t["col_text"]] = link["text"][:40]
+                    item[t["col_url"]] = link["url"]
+                    item[t["col_type"]] = t["type_int"] if link["is_internal"] else t["type_ext"]
+                    item[t["col_code"]] = int(link["status_code"]) if link["status_code"] else "Error"
+                    item[t["col_health"]] = link["health"]
+                    formatted_links.append(item)
+                
