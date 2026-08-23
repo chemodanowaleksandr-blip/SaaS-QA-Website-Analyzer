@@ -35,7 +35,7 @@ def save_to_history(url, status, links_count):
     conn.commit()
     conn.close()
 
-# 2. Асинхронная проверка статуса конкретной ссылки (Исправленный синтаксис)
+# 2. Асинхронная проверка статуса конкретной ссылки
 async def check_single_link(client: httpx.AsyncClient, link_data: dict):
     url = link_data["url"]
     try:
