@@ -3,45 +3,26 @@ from bs4 import BeautifulSoup
 import streamlit as st
 import pandas as pd
 import time
-import sqlite3
 from urllib.parse import urljoin, urlparse
 
-# 1. Инициализация базы данных SQLite
-DB_FILE = "qa_history.db"
-
-def init_db():
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS scan_history (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            url TEXT,
-            status TEXT,
-            links_found INTEGER,
-            timestamp TEXT
-        )
-    ''')
-    conn.commit()
-    conn.close()
+# 1. Хранение истории в оперативной памяти сессии (Вместо проблемного SQLite)
+if "history_data" not in st.session_state:
+    st.session_state["history_data"] = []
 
 def save_to_history(url, status, links_count):
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute(
-        "INSERT INTO scan_history (url, status, links_found, timestamp) VALUES (?, ?, ?, ?)",
-        (url, status, links_count, time.strftime("%Y-%m-%d %H:%M:%S"))
-    )
-    conn.commit()
-    conn.close()
+    st.session_state["history_data"].insert(0, {
+        "URL": url,
+        "Status": status,
+        "Time": time.strftime("%Y-%m-%d %H:%M:%S")
+    })
 
 # 2. Стабильная синхронная проверка статуса конкретной ссылки
-def check_single_link(client: httpx.Client, link_data: dict):
+def check_single_link(client, link_data: dict):
     url = link_data["url"]
     try:
-        # Быстрый HEAD запрос
-        response = client.head(url, timeout=4.0, follow_redirects=True)
+        response = client.head(url, timeout=3.0, follow_redirects=True)
         if response.status_code == 404 or response.status_code == 405:
-            response = client.get(url, timeout=4.0, follow_redirects=True)
+            response = client.get(url, timeout=3.0, follow_redirects=True)
             
         link_data["status_code"] = response.status_code
         
@@ -63,7 +44,6 @@ def analyze_website(url: str, is_premium: bool):
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
     }
     
-    # Используем чистый синхронный клиент
     with httpx.Client(headers=headers, timeout=10.0, follow_redirects=True) as client:
         try:
             response = client.get(url)
@@ -99,7 +79,6 @@ def analyze_website(url: str, is_premium: bool):
             if not is_premium:
                 raw_links = raw_links[:10]
             
-            # Последовательная надежная проверка без зависания потоков Streamlit
             verified_links = []
             for link in raw_links:
                 verified_links.append(check_single_link(client, link))
@@ -116,7 +95,6 @@ def analyze_website(url: str, is_premium: bool):
 # 3. Веб-интерфейс
 def main():
     st.set_page_config(page_title="Enterprise QA Site Analyzer", page_icon="🔍", layout="wide")
-    init_db()
     
     lang = st.sidebar.selectbox("🌐 Language / Язык", ["Русский", "English"])
     
@@ -188,17 +166,12 @@ def main():
     
     st.sidebar.markdown("---")
     st.sidebar.header(t["history"])
-    conn = sqlite3.connect(DB_FILE)
-    try:
-        df_history = pd.read_sql_query("SELECT url, status, timestamp FROM scan_history ORDER BY id DESC LIMIT 10", conn)
-        if not df_history.empty:
-            st.sidebar.dataframe(df_history, use_container_width=True, hide_index=True)
-        else:
-            st.sidebar.info(t["history_empty"])
-    except Exception:
-        st.sidebar.error("DB error.")
-    finally:
-        conn.close()
+    
+    if st.session_state["history_data"]:
+        df_history = pd.DataFrame(st.session_state["history_data"])
+        st.sidebar.dataframe(df_history, use_container_width=True, hide_index=True)
+    else:
+        st.sidebar.info(t["history_empty"])
 
     user_input = st.text_input(t["placeholder"], placeholder=t["placeholder_input"])
     
@@ -215,7 +188,6 @@ def main():
         
         with st.spinner(t["spinner"]):
             start_time = time.time()
-            # Прямой синхронный вызов
             result = analyze_website(target_url, is_premium)
             end_time = time.time()
             
@@ -242,3 +214,24 @@ def main():
                 
                 df_links = pd.DataFrame(formatted_links)
                 
+                if not is_premium:
+                    st.warning(t["limit_notice"].format(result["total_count"]))
+                
+                st.dataframe(df_links, use_container_width=True, hide_index=True)
+                
+                if is_premium:
+                    csv = df_links.to_csv(index=False).encode('utf-8')
+                    st.download_button(
+                        label=t["download"],
+                        data=csv,
+                        file_name="qa_deep_health_report.csv",
+                        mime="text/csv",
+                    )
+                else:
+                    st.button(t["download"], disabled=True)
+        else:
+            st.error(f"{t['failed']} {result['error']}")
+            save_to_history(target_url, "Failed", 0)
+
+if __name__ == "__main__":
+    main()
