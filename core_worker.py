@@ -35,7 +35,7 @@ def save_to_history(url, status, links_count):
     conn.commit()
     conn.close()
 
-# 2. Универсальный асинхронный движок парсера (Стабильная версия)
+# 2. Универсальный асинхронный движок парсера
 async def analyze_website(url: str):
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -43,7 +43,6 @@ async def analyze_website(url: str):
         "Accept-Language": "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7",
     }
     
-    # Мы убрали http2=True, теперь код запустится на любой машине без ошибок расширений
     async with httpx.AsyncClient(headers=headers, timeout=12.0, follow_redirects=True) as client:
         try:
             response = await client.get(url)
@@ -77,13 +76,29 @@ async def analyze_website(url: str):
         except Exception as e:
             return {"status": "Failed", "error": str(e), "links": []}
 
-# 3. Веб-интерфейс
+# 3. Веб-интерфейс с бизнес-логикой (Монетизация)
 def main():
     st.set_page_config(page_title="Global SaaS QA Website Analyzer", page_icon="🔍", layout="wide")
     init_db()
     
+    # Боковая панель: Выбор языка
     lang = st.sidebar.selectbox("🌐 Language / Язык", ["Русский", "English"])
     
+    # СЕКРЕТНЫЙ ПРОМОКОД ДЛЯ ИНВЕСТОРОВ И ПРЕМИУМА
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("💎 Subscription / Подписка")
+    promo_input = st.sidebar.text_input("Промокод / Promo Code", placeholder="STARTUP2026", type="password")
+    
+    # Проверка статуса подписки
+    is_premium = (promo_input.strip() == "STARTUP2026")
+    
+    if is_premium:
+        st.sidebar.success("👑 PREMIUM ACTIVE / АКТИВЕН")
+    else:
+        st.sidebar.warning("🆓 FREE PLAN / БЕСПЛАТНЫЙ")
+        st.sidebar.info("💡 Введите код 'STARTUP2026' для активации Premium-функций.")
+    
+    # Словари локализации
     t = {
         "Русский": {
             "title": "🔍 Глобальный SaaS QA Анализатор Сайтов",
@@ -105,7 +120,8 @@ def main():
             "type_int": "Внутренняя",
             "type_ext": "Внешняя",
             "download": "📥 Скачать полный отчет в CSV",
-            "failed": "❌ АУДИТ ПРОВАЛЕН. "
+            "failed": "❌ АУДИТ ПРОВАЛЕН. ",
+            "limit_notice": "⚠️ Ограничение бесплатной версии: показано только 10 ссылок из {}. Чтобы выгрузить полный отчёт в CSV и снять лимиты, активируйте Premium подписку."
         },
         "English": {
             "title": "🔍 Global SaaS QA Website Analyzer",
@@ -127,13 +143,16 @@ def main():
             "type_int": "Internal",
             "type_ext": "External",
             "download": "📥 Download Full Report (CSV)",
-            "failed": "❌ AUDIT FAILED. "
+            "failed": "❌ AUDIT FAILED. ",
+            "limit_notice": "⚠️ Free Plan Limit: displaying only 10 links out of {}. Activate Premium Subscription to unlock full CSV export and deep crawling."
         }
     }[lang]
 
     st.title(t["title"])
     st.caption(t["subtitle"])
     
+    # Боковая панель с историей
+    st.sidebar.markdown("---")
     st.sidebar.header(t["history"])
     conn = sqlite3.connect(DB_FILE)
     try:
@@ -147,6 +166,7 @@ def main():
     finally:
         conn.close()
 
+    # Поле ввода
     user_input = st.text_input(t["placeholder"], placeholder="example.com")
     
     if st.button(t["button"], type="primary"):
@@ -176,24 +196,38 @@ def main():
             if result["links"]:
                 st.subheader(t["table_title"])
                 
-                formatted_links = []
+                # Формируем сырой список ссылок
+                all_links = []
                 for link in result["links"]:
-                    formatted_links.append({
+                    all_links.append({
                         t["col_text"]: link["text"][:50],
                         t["col_url"]: link["url"],
                         t["col_type"]: t["type_int"] if link["is_internal"] else t["type_ext"]
                     })
                 
-                df_links = pd.DataFrame(formatted_links)
+                # ПРИМЕНЯЕМ БИЗНЕС-ЛОГИКУ МОНЕТИЗАЦИИ
+                total_count = len(all_links)
+                if not is_premium:
+                    # Обрезаем таблицу до 10 элементов для бесплатных юзеров
+                    display_links = all_links[:10]
+                    st.warning(t["limit_notice"].format(total_count))
+                else:
+                    display_links = all_links
+                
+                df_links = pd.DataFrame(display_links)
                 st.dataframe(df_links, use_container_width=True)
                 
-                csv = df_links.to_csv(index=False).encode('utf-8')
-                st.download_button(
-                    label=t["download"],
-                    data=csv,
-                    file_name="qa_global_report.csv",
-                    mime="text/csv",
-                )
+                # Кнопка скачивания доступна ТОЛЬКО для премиум аккаунтов
+                if is_premium:
+                    csv = df_links.to_csv(index=False).encode('utf-8')
+                    st.download_button(
+                        label=t["download"],
+                        data=csv,
+                        file_name="qa_premium_report.csv",
+                        mime="text/csv",
+                    )
+                else:
+                    st.button(t["download"], disabled=True, help="Available only in Premium Plan / Доступно только в Premium тарифе")
         else:
             st.error(f"{t['failed']} {result['error']}")
             save_to_history(target_url, "Failed", 0)
