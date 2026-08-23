@@ -35,7 +35,7 @@ def save_to_history(url, status, links_count):
     conn.commit()
     conn.close()
 
-# 2. Универсальный международный движок парсера
+# 2. Универсальный асинхронный движок парсера (Стабильная версия)
 async def analyze_website(url: str):
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -43,8 +43,8 @@ async def analyze_website(url: str):
         "Accept-Language": "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7",
     }
     
-    # http2=True теперь полностью обеспечен библиотекой httpcore в requirements
-    async with httpx.AsyncClient(headers=headers, timeout=12.0, follow_redirects=True, http2=True) as client:
+    # Мы убрали http2=True, теперь код запустится на любой машине без ошибок расширений
+    async with httpx.AsyncClient(headers=headers, timeout=12.0, follow_redirects=True) as client:
         try:
             response = await client.get(url)
             if response.status_code != 200:
@@ -77,15 +77,13 @@ async def analyze_website(url: str):
         except Exception as e:
             return {"status": "Failed", "error": str(e), "links": []}
 
-# 3. Веб-интерфейс с поддержкой СНГ и Европы
+# 3. Веб-интерфейс
 def main():
     st.set_page_config(page_title="Global SaaS QA Website Analyzer", page_icon="🔍", layout="wide")
     init_db()
     
-    # Выбор языка интерфейса
     lang = st.sidebar.selectbox("🌐 Language / Язык", ["Русский", "English"])
     
-    # Словари локализации
     t = {
         "Русский": {
             "title": "🔍 Глобальный SaaS QA Анализатор Сайтов",
@@ -136,7 +134,6 @@ def main():
     st.title(t["title"])
     st.caption(t["subtitle"])
     
-    # Боковая панель с историей
     st.sidebar.header(t["history"])
     conn = sqlite3.connect(DB_FILE)
     try:
@@ -150,7 +147,6 @@ def main():
     finally:
         conn.close()
 
-    # Поле ввода
     user_input = st.text_input(t["placeholder"], placeholder="example.com")
     
     if st.button(t["button"], type="primary"):
