@@ -35,21 +35,22 @@ def save_to_history(url, status, links_count):
     conn.commit()
     conn.close()
 
-# 2. Асинхронная проверка статуса конкретной ссылки
+# 2. Асинхронная проверка статуса конкретной ссылки (Исправленный синтаксис)
 async def check_single_link(client: httpx.AsyncClient, link_data: dict):
     url = link_data["url"]
     try:
         # Отправляем быстрый HEAD-запрос вместо тяжелого GET
         response = await client.head(url, timeout=5.0, follow_redirects=True)
-        # Если HEAD не поддерживается сайтом (код 404 или 405), страхуемся через GET
-        if response.status_code in:
+        
+        # Если сайт вернул ошибку клиента или метода, страхуемся через GET-запрос
+        if response.status_code == 404 or response.status_code == 405:
             response = await client.get(url, timeout=5.0, follow_redirects=True)
             
         link_data["status_code"] = response.status_code
         
         if response.status_code == 200:
             link_data["health"] = "🟢 OK"
-        elif response.status_code in:
+        elif response.status_code >= 300 and response.status_code < 400:
             link_data["health"] = "🟡 Redirect"
         else:
             link_data["health"] = f"🔴 Broken ({response.status_code})"
@@ -236,5 +237,3 @@ def main():
                         t["col_url"]: link["url"],
                         t["col_type"]: t["type_int"] if link["is_internal"] else t["type_ext"],
                         t["col_code"]: int(link["status_code"]) if link["status_code"] else "Error",
-                        t["col_health"]: link["health"]
-                    })
