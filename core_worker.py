@@ -174,7 +174,7 @@ def main():
 
     if st.session_state["history_dark"]:
         df_history = pd.DataFrame(st.session_state["history_dark"])
-        st.sidebar.data_editor(df_history, use_container_width=True, hide_index=True)
+        st.sidebar.dataframe(df_history, use_container_width=True, hide_index=True)
     else:
         st.sidebar.info(t["history_empty"])
 
