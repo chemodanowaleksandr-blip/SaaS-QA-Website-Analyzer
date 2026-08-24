@@ -114,7 +114,7 @@ def main():
     t = {
         "Русский": {
             "title": "🔍 Глобальный Аудит QA Анализатор Сайтов",
-            "subtitle": "Многопоточный audit доступности ссылок (HTTP status codes validation) для СНГ и Европы.",
+            "subtitle": "Многопоточный аудит доступности ссылок (HTTP status codes validation) для СНГ и Европы.",
             "history": "История проверок",
             "history_empty": "История пока пуста.",
             "placeholder": "Введите URL сайта для глубокого QA-анализа:",
@@ -226,9 +226,7 @@ def main():
                 st.dataframe(df_links, use_container_width=True, hide_index=True)
 
                 if is_premium:
-                    # Генерируем Excel-файл через наш новый модуль из reports.py
                     excel_file = generate_excel_report(formatted_links)
-                    
                     st.download_button(
                         label=t["download"],
                         data=excel_file,
@@ -238,3 +236,6 @@ def main():
                 else:
                     st.button(t["download"], disabled=True)
         else:
+            st.error(f"{t['failed']} | {result['error']}")
+            save_to_history(target_url, "Failed", 0)
+
