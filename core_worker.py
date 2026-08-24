@@ -22,9 +22,9 @@ def save_to_history(url, status, links_count):
 def check_single_link(client, link_data):
     url = link_data["url"]
     try:
-        response = client.head(url, timeout=3.0, follow_redirects=True)
+        response = client.head(url, timeout=3.0, follow_redirects=True, verify=False)
         if response.status_code == 405 or response.status_code == 404:
-            response = client.get(url, timeout=3.0, follow_redirects=True)
+            response = client.get(url, timeout=3.0, follow_redirects=True, verify=False)
         
         link_data["status_code"] = response.status_code
         
@@ -48,7 +48,7 @@ def analyze_website(url, is_premium):
     }
     
     try:
-        with httpx.Client(headers=headers, timeout=10.0, follow_redirects=True) as client:
+        with httpx.Client(headers=headers, timeout=10.0, follow_redirects=True, verify=False) as client:
             response = client.get(url)
             if response.status_code != 200:
                 return {"status": "failed", "error": f"HTTP error {response.status_code}", "links": []}
