@@ -82,7 +82,6 @@ def analyze_website(url, is_premium):
             if not is_premium:
                 raw_links = raw_links[:30]
                 
-            # Запускаем проверку каждой ссылки в пуле через созданный клиент
             checked_links = []
             for link in raw_links:
                 checked_links.append(check_single_link(client, link))
@@ -239,3 +238,5 @@ def main():
             st.error(f"{t['failed']} | {result['error']}")
             save_to_history(target_url, "Failed", 0)
 
+if __name__ == "__main__":
+    main()
