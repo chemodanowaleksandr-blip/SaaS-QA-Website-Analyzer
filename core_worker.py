@@ -22,7 +22,6 @@ def save_to_history(url, status, links_count):
 def check_single_link(client, link_data):
     url = link_data["url"]
     try:
-        # verify=False убран отсюда, так как он уже настроен в самом клиенте ниже
         response = client.head(url, timeout=3.0, follow_redirects=True)
         if response.status_code == 405 or response.status_code == 404:
             response = client.get(url, timeout=3.0, follow_redirects=True)
@@ -48,7 +47,6 @@ def analyze_website(url, is_premium):
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8"
     }
     
-    # Правильно отключаем проверку SSL для всего клиента сразу: verify=False
     try:
         with httpx.Client(headers=headers, timeout=10.0, follow_redirects=True, verify=False) as client:
             response = client.get(url)
@@ -237,3 +235,8 @@ def main():
                 else:
                     st.button(t["download"], disabled=True)
         else:
+            st.error(f"{t['failed']} | {result['error']}")
+            save_to_history(target_url, "Failed", 0)
+
+if __name__ == "__main__":
+    main()
