@@ -235,14 +235,4 @@ def main():
                     )
                 else:
                     st.button(t["download"], disabled=True)
-                            else:
-            st.error(f"{t['failed']} | {result.get('error', 'Unknown Error')}")
-            save_to_history(target_url, "Failed", 0)
-
-if __name__ == "__main__":
-    main()
-                else:
-                    st.button(t["download"], disabled=True)else:st.error(f"{t['failed']} 
-                    | {result['error']}")save_to_history(target_url, "Failed", 0)
-if __name__ == "__main__":
-    main()
+                    
