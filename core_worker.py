@@ -82,6 +82,7 @@ def analyze_website(url, is_premium):
             if not is_premium:
                 raw_links = raw_links[:30]
                 
+            # Запускаем проверку каждой ссылки в пуле через созданный клиент
             checked_links = []
             for link in raw_links:
                 checked_links.append(check_single_link(client, link))
@@ -177,9 +178,12 @@ def main():
     else:
         st.sidebar.info(t["history_empty"])
 
-    user_input = st.text_input(t["placeholder"], placeholder=t["placeholder_input"])
+    # Оборачиваем ввод и кнопку запуска в форму, чтобы работал Enter
+    with st.form(key="qa_audit_form", clear_on_submit=False):
+        user_input = st.text_input(t["placeholder"], placeholder=t["placeholder_input"])
+        submit_button = st.form_submit_button(t["button"], type="primary")
 
-    if st.button(t["button"], type="primary"):
+    if submit_button:
         if not user_input:
             st.warning(t["warning"])
             return
@@ -232,11 +236,3 @@ def main():
                         file_name="qa_deep_health_report.xlsx",
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                     )
-                else:
-                    st.button(t["download"], disabled=True)
-        else:
-            st.error(f"{t['failed']} | {result['error']}")
-            save_to_history(target_url, "Failed", 0)
-
-if __name__ == "__main__":
-    main()
