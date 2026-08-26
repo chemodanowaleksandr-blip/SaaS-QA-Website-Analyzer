@@ -89,15 +89,19 @@ def main():
     lang = st.sidebar.selectbox("🌐 Language / Язык", ["Русский", "English"])
     st.sidebar.markdown("---")
     
-    user_session = render_auth_section()
+    # Сначала генерируем базовый языковой пакет
+    t_init = get_localization(lang, "Guest")
+    
+    # Передаем его в авторизацию
+    user_session = render_auth_section(t_init)
     if not user_session:
-        st.info("👋 Пожалуйста, зарегистрируйтесь или войдите в систему слева, чтобы начать аудит.")
+        st.info(t_init["welcome_info"])
         return
         
     current_user = user_session["username"]
     is_premium = user_session["plan"] == "premium"
     
-    # Подключаем вынесенную локализацию
+    # Пересобираем локализацию уже с реальным именем вошедшего пользователя
     t = get_localization(lang, current_user)
     
     st.title(t["title"])
