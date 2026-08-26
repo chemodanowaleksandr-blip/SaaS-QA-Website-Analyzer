@@ -78,6 +78,12 @@ def analyze_website(url, is_premium):
 def trigger_audit():
     st.session_state["run_processing"] = True
 
+def handle_history_select():
+    """Срабатывает при выборе ссылки из выпадающего списка истории."""
+    if st.session_state["history_selector"] != "---":
+        st.session_state["selected_url"] = st.session_state["history_selector"]
+        st.session_state["run_processing"] = True
+
 def main():
     st.set_page_config(page_title="Enterprise QA Site Analyzer", page_icon="🔍", layout="wide")
     
@@ -89,10 +95,7 @@ def main():
     lang = st.sidebar.selectbox("🌐 Language / Язык", ["Русский", "English"])
     st.sidebar.markdown("---")
     
-    # Сначала генерируем базовый языковой пакет
     t_init = get_localization(lang, "Guest")
-    
-    # Передаем его в авторизацию
     user_session = render_auth_section(t_init)
     if not user_session:
         st.info(t_init["welcome_info"])
@@ -101,7 +104,6 @@ def main():
     current_user = user_session["username"]
     is_premium = user_session["plan"] == "premium"
     
-    # Пересобираем локализацию уже с реальным именем вошедшего пользователя
     t = get_localization(lang, current_user)
     
     st.title(t["title"])
@@ -109,14 +111,20 @@ def main():
     st.sidebar.markdown("---")
     st.sidebar.subheader(t["history"])
     
+    # СТАБИЛЬНЫЙ ВЫБОР ИЗ ИСТОРИИ ЧЕРЕЗ SELECTBOX ДЛЯ СТАРЫХ ВЕРСИЙ STREAMLIT
     db_data = get_db_history(current_user)
     if db_data:
         df_history = pd.DataFrame(db_data)
-        selected = st.sidebar.dataframe(df_history, use_container_width=True, hide_index=True, on_select="rerun", selection_mode="single_row")
-        if selected and selected["selection"]["rows"]:
-            row_idx = selected["selection"]["rows"]
-            st.session_state["selected_url"] = df_history.iloc[row_idx]["URL"]
-            st.session_state["run_processing"] = True
+        urls_list = ["---"] + df_history["URL"].unique().tolist()
+        
+        st.sidebar.selectbox(
+            "Выберите сайт для перезапуска:",
+            options=urls_list,
+            key="history_selector",
+            on_change=handle_history_select
+        )
+        st.sidebar.markdown("---")
+        st.sidebar.dataframe(df_history, use_container_width=True, hide_index=True)
     else:
         st.sidebar.info(t["history_empty"])
         
