@@ -79,9 +79,7 @@ def trigger_audit():
     st.session_state["run_processing"] = True
 
 def handle_history_select():
-    """Мгновенно подставляет выбранный сайт в строку ввода и запускает аудит."""
     if st.session_state["history_selector"] != "---":
-        # ИСПРАВЛЕНО: Меняем значение напрямую в стейте текстового поля
         st.session_state["site_url_input_value"] = st.session_state["history_selector"]
         st.session_state["run_processing"] = True
 
@@ -90,7 +88,6 @@ def main():
     
     if "run_processing" not in st.session_state:
         st.session_state["run_processing"] = False
-    # ИСПРАВЛЕНО: Храним текущее значение строки ввода в сессии
     if "site_url_input_value" not in st.session_state:
         st.session_state["site_url_input_value"] = ""
         
@@ -104,7 +101,19 @@ def main():
         return
         
     current_user = user_session["username"]
-    is_premium = user_session["plan"] == "premium"
+    
+    # ВОЗВРАЩАЕМ ПОЛЕ ПРОМОКОДА В ЛИЧНЫЙ КАБИНЕТ
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("🔑 Subscription / Подписка")
+    promo_input = st.sidebar.text_input("Промокод / Promo code", placeholder="STARTUP2026", type="password")
+    
+    # Проверяем тариф: либо из базы 'premium', либо по введенному промокоду
+    is_premium = (user_session["plan"] == "premium") or (promo_input.strip() == "STARTUP2026")
+    
+    if is_premium:
+        st.sidebar.success("🔥 PREMIUM ACTIVE / АКТИВЕН")
+    else:
+        st.sidebar.warning("⚠️ FREE PLAN / БЕСПЛАТНЫЙ")
     
     t = get_localization(lang, current_user)
     
@@ -129,7 +138,6 @@ def main():
     else:
         st.sidebar.info(t["history_empty"])
         
-    # ИСПРАВЛЕНО: Привязали поле ввода к site_url_input_value. Теперь текст меняется сам!
     user_input = st.text_input(
         "URL сайта:", 
         placeholder=t["placeholder_input"], 
@@ -137,7 +145,6 @@ def main():
         on_change=trigger_audit
     )
     
-    # Кнопка запуска
     if st.button(t["button"], type="primary"):
         st.session_state["run_processing"] = True
         
