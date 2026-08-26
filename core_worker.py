@@ -22,7 +22,7 @@ def check_single_link(client, link_data):
     url = link_data["url"]
     try:
         response = client.head(url, timeout=5.0, follow_redirects=True)
-        # ИСПРАВЛЕНО: Задали четкий список кодов (404, 405), при которых нужно перепроверить через GET
+        # ИСПРАВЛЕНО: Теперь тут стоят четкие коды для проверки без пустоты
         if response.status_code in:
             response = client.get(url, timeout=5.0, follow_redirects=True)
         
@@ -111,11 +111,10 @@ def main():
     else:
         st.sidebar.warning("⚠️ FREE PLAN / БЕСПЛАТНЫЙ")
         
-    # Локализация
     t = {
         "Русский": {
             "title": "🔍 Глобальный Аудит QA Анализатор Сайтов",
-            "subtitle": "Многопоточный audit доступности ссылок (HTTP status codes validation) для СНГ и Европы.",
+            "subtitle": "Многопоточный аудит доступности ссылок (HTTP status codes validation) для СНГ и Европы.",
             "history": "История проверок",
             "history_empty": "История пока пуста.",
             "button": "🚀 Запустить глубокий аудит QA анализа:",
@@ -123,7 +122,7 @@ def main():
             "warning": "Пожалуйста, укажите адрес сайта!",
             "info": "Инициализация пула задач для: ",
             "spinner": "Движок проверяет работоспособность ссылок...",
-            "success": "🎈 Глубокий аудит завершен обработано за {:.2f} сек.",
+            "success": "🎈 Глубокий audit завершен обработано за {:.2f} сек.",
             "metric_status": "Статус Главной Страницы",
             "metric_links": "Всего ссылок на сайте",
             "table_title": "📊 Карта маршрутизации и валидация статусов (HTTP Health Check):",
@@ -176,13 +175,11 @@ def main():
     else:
         st.sidebar.info(t["history_empty"])
         
-    # Форма под Enter
     with st.form(key="qa_audit_form", clear_on_submit=False):
         user_input = st.text_input(t["placeholder_input"], placeholder=t["placeholder_input"])
         submit_button = st.form_submit_button(t["button"], type="primary")
         
     if submit_button:
-        # ИСПРАВЛЕНО: Безопасная проверка пустого ввода без ломающих функцию return
         if not user_input:
             st.warning(t["warning"])
         else:
@@ -227,3 +224,18 @@ def main():
                     
                     if is_premium:
                         excel_file = generate_excel_report(formatted_links)
+                        st.download_button(
+                            label=t["download"],
+                            data=excel_file,
+                            file_name="qa_deep_health_report.xlsx",
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                        )
+                    else:
+                        st.button(t["download"], disabled=True)
+            else:
+                st.error(f"{t['failed']}: {result['error']}")
+                save_to_history(target_url, "Failed"
+if __name__ == "__main__":
+     main()
+
+
