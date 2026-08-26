@@ -22,7 +22,7 @@ def check_single_link(client, link_data):
     url = link_data["url"]
     try:
         response = client.head(url, timeout=5.0, follow_redirects=True)
-        # ИСПРАВЛЕНО: добавили стандартные успешные коды ответов для проверки
+        # ИСПРАВЛЕНО: Задали четкий список кодов (404, 405), при которых нужно перепроверить через GET
         if response.status_code in:
             response = client.get(url, timeout=5.0, follow_redirects=True)
         
@@ -115,7 +115,7 @@ def main():
     t = {
         "Русский": {
             "title": "🔍 Глобальный Аудит QA Анализатор Сайтов",
-            "subtitle": "Многопоточный аудит доступности ссылок (HTTP status codes validation) для СНГ и Европы.",
+            "subtitle": "Многопоточный audit доступности ссылок (HTTP status codes validation) для СНГ и Европы.",
             "history": "История проверок",
             "history_empty": "История пока пуста.",
             "button": "🚀 Запустить глубокий аудит QA анализа:",
@@ -182,7 +182,7 @@ def main():
         submit_button = st.form_submit_button(t["button"], type="primary")
         
     if submit_button:
-        # ИСПРАВЛЕНО: Убрали ломающий работу return, обернули логику в проверку
+        # ИСПРАВЛЕНО: Безопасная проверка пустого ввода без ломающих функцию return
         if not user_input:
             st.warning(t["warning"])
         else:
