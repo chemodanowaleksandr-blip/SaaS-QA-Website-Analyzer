@@ -23,7 +23,7 @@ def check_single_link(client, link_data):
     try:
         response = client.head(url, timeout=5.0, follow_redirects=True)
         # ИСПРАВЛЕНО: Теперь тут стоят четкие коды для проверки без пустоты
-        if response.status_code in:
+        if response.status_code >= 400:
             response = client.get(url, timeout=5.0, follow_redirects=True)
         
         link_data["status_code"] = response.status_code
