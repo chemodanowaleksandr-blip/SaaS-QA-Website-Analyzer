@@ -234,7 +234,7 @@ def main():
                         st.button(t["download"], disabled=True)
             else:
                 st.error(f"{t['failed']}: {result['error']}")
-                save_to_history(target_url, "Failed"
+                save_to_history(target_url, "Failed")
 if __name__ == "__main__":
      main()
 
