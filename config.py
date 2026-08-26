@@ -1,5 +1,5 @@
-def get_localization(lang, current_user):
-    """Возвращает словари локализации для интерфейса."""
+def get_localization(lang, current_user=""):
+    """Возвращает словари локализации для интерфейса и блока авторизации."""
     return {
         "Русский": {
             "title": "🔍 Глобальный Аудит QA Анализатор Сайтов",
@@ -24,7 +24,20 @@ def get_localization(lang, current_user):
             "limit_notice": "⚠️ Лимит бесплатного тарифа: Проверено только первые 50 ссылок из {}. Приобретите Premium.",
             "type_int": "Внутренняя",
             "type_ext": "Внешняя",
-            "failed": "Ошибка анализа"
+            "failed": "Ошибка анализа",
+            "auth_title": "🔐 Авторизация системы",
+            "auth_mode_label": "Выберите действие:",
+            "auth_modes": ["Вход", "Регистрация"],
+            "login_user": "Логин (имя пользователя):",
+            "login_pass": "Пароль:",
+            "auth_submit": "Подтвердить",
+            "auth_empty_err": "Заполните все поля формы!",
+            "auth_login_ok": "Успешный вход в систему!",
+            "auth_login_fail": "Неверный логин или пароль!",
+            "auth_reg_info": "Теперь переключитесь на вкладку 'Вход'.",
+            "logout_btn": "Выйти из системы",
+            "status_label": "Вошел как",
+            "welcome_info": "👋 Добро пожаловать! Пожалуйста, зарегистрируйтесь или войдите в систему в боковой панели слева, чтобы начать аудит сайтов."
         },
         "English": {
             "title": "🔍 Global Agent QA Website Analyzer",
@@ -49,6 +62,19 @@ def get_localization(lang, current_user):
             "limit_notice": "⚠️ Free tier limit: evaluated only first 50 links out of {}. Upgrade to Premium.",
             "type_int": "Internal",
             "type_ext": "External",
-            "failed": "Analysis Failed"
+            "failed": "Analysis Failed",
+            "auth_title": "🔐 System Authentication",
+            "auth_mode_label": "Select action:",
+            "auth_modes": ["Sign In", "Sign Up"],
+            "login_user": "Username:",
+            "login_pass": "Password:",
+            "auth_submit": "Submit",
+            "auth_empty_err": "Please fill in all fields!",
+            "auth_login_ok": "Successfully logged in!",
+            "auth_login_fail": "Invalid username or password!",
+            "auth_reg_info": "Now switch to 'Sign In' tab.",
+            "logout_btn": "Sign Out",
+            "status_label": "Logged in as",
+            "welcome_info": "👋 Welcome! Please register or log in using the sidebar to start auditing websites."
         }
     }[lang]
