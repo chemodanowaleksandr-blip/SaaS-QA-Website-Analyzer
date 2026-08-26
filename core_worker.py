@@ -79,9 +79,10 @@ def trigger_audit():
     st.session_state["run_processing"] = True
 
 def handle_history_select():
-    """Срабатывает при выборе ссылки из выпадающего списка истории."""
+    """Мгновенно подставляет выбранный сайт в строку ввода и запускает аудит."""
     if st.session_state["history_selector"] != "---":
-        st.session_state["selected_url"] = st.session_state["history_selector"]
+        # ИСПРАВЛЕНО: Меняем значение напрямую в стейте текстового поля
+        st.session_state["site_url_input_value"] = st.session_state["history_selector"]
         st.session_state["run_processing"] = True
 
 def main():
@@ -89,8 +90,9 @@ def main():
     
     if "run_processing" not in st.session_state:
         st.session_state["run_processing"] = False
-    if "selected_url" not in st.session_state:
-        st.session_state["selected_url"] = ""
+    # ИСПРАВЛЕНО: Храним текущее значение строки ввода в сессии
+    if "site_url_input_value" not in st.session_state:
+        st.session_state["site_url_input_value"] = ""
         
     lang = st.sidebar.selectbox("🌐 Language / Язык", ["Русский", "English"])
     st.sidebar.markdown("---")
@@ -111,7 +113,6 @@ def main():
     st.sidebar.markdown("---")
     st.sidebar.subheader(t["history"])
     
-    # СТАБИЛЬНЫЙ ВЫБОР ИЗ ИСТОРИИ ЧЕРЕЗ SELECTBOX ДЛЯ СТАРЫХ ВЕРСИЙ STREAMLIT
     db_data = get_db_history(current_user)
     if db_data:
         df_history = pd.DataFrame(db_data)
@@ -128,12 +129,20 @@ def main():
     else:
         st.sidebar.info(t["history_empty"])
         
-    default_url = st.session_state["selected_url"] if st.session_state["selected_url"] else ""
-    user_input = st.text_input("URL сайта:", value=default_url, placeholder=t["placeholder_input"], key="site_url_input", on_change=trigger_audit)
+    # ИСПРАВЛЕНО: Привязали поле ввода к site_url_input_value. Теперь текст меняется сам!
+    user_input = st.text_input(
+        "URL сайта:", 
+        placeholder=t["placeholder_input"], 
+        key="site_url_input_value", 
+        on_change=trigger_audit
+    )
     
-    if st.button(t["button"], type="primary") or st.session_state["run_processing"]:
+    # Кнопка запуска
+    if st.button(t["button"], type="primary"):
+        st.session_state["run_processing"] = True
+        
+    if st.session_state["run_processing"]:
         st.session_state["run_processing"] = False
-        st.session_state["selected_url"] = ""
         
         if not user_input:
             st.warning(t["warning"])
@@ -178,11 +187,9 @@ def main():
                     st.download_button(label=t["download"], data=excel_file, file_name="qa_deep_health_report.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
                 else:
                     st.button(t["download"], disabled=True)
-            st.rerun()
         else:
             st.error(f"{t['failed']}: {result['error']}")
             save_to_db_history(current_user, target_url, "Failed")
-            st.rerun()
 
 if __name__ == "__main__":
     main()
